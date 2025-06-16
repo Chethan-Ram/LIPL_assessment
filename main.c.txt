@@ -1,0 +1,122 @@
+// Global variables
+int G = 0;
+uint8_t DataID = 0;
+uint8_t DataValue = 0;
+
+TaskHandle_t TaskHandle_1 = NULL;
+TaskHandle_t TaskHandle_2 = NULL;
+QueueHandle_t QueueHandle_1 = NULL;
+
+typedef struct {
+    uint8_t dataID;
+    uint8_t dataValue;
+} Data_t;
+
+// ExampleTask1 Definition
+void vExampleTask1(void *pvParameters) {
+    Data_t receivedData;
+    BaseType_t xStatus;
+
+    // Create the queue once (e.g., in main or setup function, if not already)
+    // For this problem, let's assume it's created outside this task for simplicity
+    // QueueHandle_1 = xQueueCreate(5, sizeof(Data_t));
+
+    for (;;) {
+        // Condition: if (DataID == 0)
+        if (DataID == 0) {
+            // Action: Delete ExampleTask2
+            if (TaskHandle_2 != NULL) {
+                vTaskDelete(TaskHandle_2);
+                TaskHandle_2 = NULL; // Set to NULL after deletion
+                printf("ExampleTask2 deleted.\n");
+            }
+        }
+
+        // Condition: if (G == 1)
+        if (G == 1) {
+            // Action: Decrease the Priority of DataValue Member
+            // This is a bit ambiguous. It likely means DataValue itself is a factor in priority.
+            // Or it implies that if G==1, the DataValue in a Data_t object affects priority.
+            // For simplicity, let's assume if G==1, a Data_t object with a certain DataValue
+            // would lead to a change in ExampleTask2's priority.
+            // However, the action directly stated is "Decrease the Priority of DataValue Member",
+            // which doesn't directly translate to a FreeRTOS API call.
+            // Let's interpret this as: if G == 1, and DataValue is related to ExampleTask2,
+            // then ExampleTask2's priority is reduced.
+            if (TaskHandle_2 != NULL) {
+                UBaseType_t currentPriority = uxTaskPriorityGet(TaskHandle_2);
+                if (currentPriority > tskIDLE_PRIORITY) { // Ensure not to go below idle priority
+                    vTaskPrioritySet(TaskHandle_2, currentPriority - 1);
+                    printf("ExampleTask2 priority decreased due to G == 1.\n");
+                }
+            }
+        }
+
+        // Condition: if (DataValue == -1)
+        // Note: DataValue is uint8_t, so -1 is not directly possible.
+        // This usually implies a specific state or error. We'll treat it as a special
+        // value, e.g., 255 if it's meant to be a flag, or there's a type mismatch.
+        // Assuming this means DataValue is (uint8_t)255 or a similar flag for "not set" or error.
+        if (DataValue == (uint8_t)255) { // Assuming -1 means 255 for uint8_t
+            // Action: Increase the Priority of ExampleTask2 if previously increased
+            // This implies ExampleTask2's priority might have been decreased before.
+            if (TaskHandle_2 != NULL) {
+                UBaseType_t currentPriority = uxTaskPriorityGet(TaskHandle_2);
+                UBaseType_t defaultPriority = 2; // Assuming a default priority for ExampleTask2
+                if (currentPriority < defaultPriority) { // If it was decreased
+                    vTaskPrioritySet(TaskHandle_2, defaultPriority);
+                    printf("ExampleTask2 priority increased back to default due to DataValue == 255.\n");
+                }
+            }
+        }
+
+        // Condition: if (DataValue == 2)
+        if (DataValue == 2) {
+            // Action: Delete ExampleTask2
+            if (TaskHandle_2 != NULL) {
+                vTaskDelete(TaskHandle_2);
+                TaskHandle_2 = NULL;
+                printf("ExampleTask2 deleted due to DataValue == 2.\n");
+            }
+        }
+
+        // Simulate some work or delay
+        vTaskDelay(pdMS_TO_TICKS(100)); // Delay for 100ms
+    }
+}
+
+// ExampleTask2 Definition (Optional, can be a simple task that just runs)
+void vExampleTask2(void *pvParameters) {
+    for (;;) {
+        // This task can perform some background processing
+        // printf("ExampleTask2 is running with priority %d.\n", uxTaskPriorityGet(NULL));
+        vTaskDelay(pdMS_TO_TICKS(500)); // Delay for 500ms
+    }
+}
+
+// Main function / FreeRTOS setup (conceptual)
+int main(void) {
+    // Initialize global variables
+    G = 0;
+    DataID = 0;
+    DataValue = 0;
+
+    // Create the queue
+    QueueHandle_1 = xQueueCreate(5, sizeof(Data_t));
+    if (QueueHandle_1 == NULL) {
+        // Error handling if queue creation fails
+        printf("Failed to create QueueHandle_1.\n");
+        return 1;
+    }
+
+    // Create tasks
+    xTaskCreate(vExampleTask1, "ExampleTask1", configMINIMAL_STACK_SIZE * 2, NULL, 3, &TaskHandle_1);
+    xTaskCreate(vExampleTask2, "ExampleTask2", configMINIMAL_STACK_SIZE * 2, NULL, 2, &TaskHandle_2);
+
+    // Start the FreeRTOS scheduler
+    vTaskStartScheduler();
+
+    // Should never reach here
+    for (;;);
+    return 0;
+}
